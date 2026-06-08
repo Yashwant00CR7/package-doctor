@@ -101,6 +101,9 @@ async def fetch_pypi_metadata(
     client: httpx.AsyncClient, package_name: str
 ) -> tuple[str | None, str | None] | None:
     """Fetch PyPI metadata for a package."""
+    import re
+    if not re.match(r"^[a-zA-Z0-9_\-\.]+$", package_name):
+        return None
     try:
         response = await client.get(PYPI_JSON_URL.format(name=package_name))
         if response.status_code == 200:

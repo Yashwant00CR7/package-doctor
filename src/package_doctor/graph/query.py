@@ -133,7 +133,7 @@ def find_related_packages(
     if relationship_type:
         query = """
         MATCH (p:Package {name: $name})-[r:HAS_RELATIONSHIP]->(related:Package)
-        WHERE r.type = $rel_type
+        WHERE r.relationship_type = $rel_type
         RETURN related.name AS name
         """
         result = conn.execute(query, {"name": package_lower, "rel_type": relationship_type})

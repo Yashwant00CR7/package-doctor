@@ -55,6 +55,17 @@ def detect_provider(model_id: str) -> tuple[Optional[str], Optional[str]]:
 async def check_model_version(model_id: str) -> dict:
     """Check model status. Returns dict with status/eol_date/successor/source_url."""
     now = datetime.now(timezone.utc).isoformat()
+    if len(model_id) > 100 or not re.match(r"^[a-zA-Z0-9_\-\.\/\:\@]+$", model_id):
+        return {
+            "model_id": model_id,
+            "provider": None,
+            "status": "error",
+            "eol_date": None,
+            "successor_model": None,
+            "last_checked": now,
+            "source_url": None,
+            "warnings": ["Invalid model ID format"],
+        }
     provider, source_url = detect_provider(model_id)
 
     # Check hard-coded removed list

@@ -133,6 +133,8 @@ def extract_relationships(name: str, summary: str, description: str) -> dict:
 
 async def fetch_pypi_metadata(name: str) -> dict:
     """Fetch package metadata from PyPI JSON API."""
+    if not re.match(r"^[a-zA-Z0-9_\-\.]+$", name):
+        return {"name": name, "summary": "", "description": "", "version": None}
     url = PYPI_URL.format(name=name)
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:

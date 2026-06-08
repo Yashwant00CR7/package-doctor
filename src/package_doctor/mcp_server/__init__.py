@@ -139,7 +139,12 @@ async def call_tool(name: str, arguments: dict):
         if not HAS_GRAPH:
             result = {"error": "Graph subsystem is not installed. Install package-doctor with the [graph] extra."}
         else:
-            result = await handle_get_package_relationships(arguments["package_name"])
+            import re
+            pkg_name = arguments["package_name"]
+            if not re.match(r"^[a-zA-Z0-9_\-\.]+$", pkg_name):
+                result = {"error": "Invalid package name format."}
+            else:
+                result = await handle_get_package_relationships(pkg_name)
     else:
         result = {"error": f"Unknown tool: {name}"}
 

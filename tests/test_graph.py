@@ -17,7 +17,7 @@ from package_doctor.graph.indexer import (
     fetch_top_packages,
     parse_pypi_response,
 )
-from package_doctor.graph.query import get_package_relationships
+from package_doctor.graph.query import get_package_relationships, find_related_packages
 from package_doctor.graph.schema import init_database
 
 
@@ -222,6 +222,44 @@ class TestQuery:
         assert result["package"] == "test-pkg"
         assert result["relationships"]["ecosystem"] == "general"
         assert result["related_packages"] == []
+
+    def test_find_related_packages(self, temp_db_path):
+        """Test querying packages with specific relationship types."""
+        db = init_database(temp_db_path)
+        conn = kuzu.Connection(db)
+
+        # Insert test packages and relationship
+        conn.execute("CREATE (p:Package {name: 'test-pkg-a', ecosystem: 'test'})")
+        conn.execute("CREATE (p:Package {name: 'test-pkg-b', ecosystem: 'test'})")
+        conn.execute("CREATE (p:Package {name: 'test-pkg-c', ecosystem: 'test'})")
+        
+        conn.execute(
+            """
+            MATCH (a:Package), (b:Package)
+            WHERE a.name = 'test-pkg-a' AND b.name = 'test-pkg-b'
+            CREATE (a)-[rel:HAS_RELATIONSHIP {relationship_type: 'wrapper_for'}]->(b)
+            """
+        )
+        conn.execute(
+            """
+            MATCH (a:Package), (c:Package)
+            WHERE a.name = 'test-pkg-a' AND c.name = 'test-pkg-c'
+            CREATE (a)-[rel:HAS_RELATIONSHIP {relationship_type: 'fork_of'}]->(c)
+            """
+        )
+
+        del conn
+        del db
+
+        # Retrieve related packages filtered by relationship type
+        related_wrapper = find_related_packages(temp_db_path, "test-pkg-a", "wrapper_for")
+        assert related_wrapper == ["test-pkg-b"]
+
+        # Retrieve all related packages without filter
+        related_all = find_related_packages(temp_db_path, "test-pkg-a")
+        assert len(related_all) == 2
+        assert "test-pkg-b" in related_all
+        assert "test-pkg-c" in related_all
 
 
 @pytest.mark.asyncio
