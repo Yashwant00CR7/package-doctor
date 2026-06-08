@@ -19,6 +19,10 @@ dev = [
     "respx==0.21.1",
     "ruff==0.4.7",
 ]
+graph = [
+    "kuzu>=0.11.0",
+    "anthropic>=0.30.0",
+]
 
 [project.scripts]
 package-doctor-mcp = "package_doctor.mcp_server:main"

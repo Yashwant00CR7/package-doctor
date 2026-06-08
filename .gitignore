@@ -1,0 +1,31 @@
+# Cache and pycache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Kuzu database files
+*.kuzu
+.kuzu/
+*.db
+
+# wheels directory
+wheels/
+
+# pytest cache
+.pytest_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# uv
+.uv/

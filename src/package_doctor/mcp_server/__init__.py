@@ -25,12 +25,20 @@ from package_doctor.conflict_analyzer import (
     check_pre_install_conflicts,
 )
 
+HAS_GRAPH = False
+try:
+    import kuzu
+    from package_doctor.graph.mcp_tool import get_mcp_tool, handle_get_package_relationships
+    HAS_GRAPH = True
+except ImportError:
+    pass
+
 server = Server("package-doctor")
 
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
-    return [
+    tools = [
         Tool(
             name="check_package",
             description=(
@@ -101,6 +109,9 @@ async def list_tools() -> list[Tool]:
             },
         ),
     ]
+    if HAS_GRAPH:
+        tools.append(get_mcp_tool())
+    return tools
 
 
 @server.call_tool()
@@ -124,6 +135,11 @@ async def call_tool(name: str, arguments: dict):
         )
     elif name == "check_model_version":
         result = await _tool_check_model_version(arguments["model_id"])
+    elif name == "get_package_relationships":
+        if not HAS_GRAPH:
+            result = {"error": "Graph subsystem is not installed. Install package-doctor with the [graph] extra."}
+        else:
+            result = await handle_get_package_relationships(arguments["package_name"])
     else:
         result = {"error": f"Unknown tool: {name}"}
 

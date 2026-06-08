@@ -13,8 +13,28 @@ def parse_pip_freeze(pip_freeze: str) -> dict[str, str]:
     installed: dict[str, str] = {}
     for line in pip_freeze.splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-"):
+        if not line or line.startswith("#"):
             continue
+        
+        # Handle editable installs starting with -e
+        if line.startswith("-e"):
+            # Try to extract egg name e.g., -e git+...#egg=requests
+            m = re.search(r"#egg=([a-zA-Z0-9_\-\.]+)", line)
+            if m:
+                installed[m.group(1).lower()] = "editable"
+            continue
+            
+        # Handle PEP 508 direct URL installs: package @ url
+        if " @ " in line:
+            name, _, url = line.partition(" @ ")
+            # Try to parse version from wheel filename in URL if possible, e.g. requests-2.31.0-py3...
+            ver = "unknown"
+            filename_match = re.search(r"/([a-zA-Z0-9_\-\.]+)-([0-9a-zA-Z\.\+\-]+)-(?:py|cp|py3)", url)
+            if filename_match and filename_match.group(1).lower().replace("_", "-") == name.strip().lower().replace("_", "-"):
+                ver = filename_match.group(2)
+            installed[name.strip().lower()] = ver
+            continue
+
         if "==" in line:
             name, _, version = line.partition("==")
             installed[name.strip().lower()] = version.strip()
@@ -28,6 +48,7 @@ def parse_pip_check(pip_check: str) -> list[ConflictEntry]:
     Handles single and multi-part specs:
       sphinx 4.3.0 requires docutils<0.18,>=0.14, but you have docutils 0.18.1 which is incompatible.
       package-a 1.0 has requirement package-b>=2.0, but you have package-b 1.5.
+      sphinx 4.3.0 requires docutils, which is not installed.
     """
     conflicts = []
     # Capture everything between "requires/has requirement" and ", but you have"
@@ -35,6 +56,11 @@ def parse_pip_check(pip_check: str) -> list[ConflictEntry]:
     pattern = re.compile(
         r"(?P<requirer>\S+)\s+\S+\s+(?:requires|has requirement)\s+"
         r"(?P<requirement>.+?),\s+but you have\s+(?P<dep2>\S+)\s+(?P<ver>\S+)",
+        re.IGNORECASE,
+    )
+    missing_pattern = re.compile(
+        r"(?P<requirer>\S+)\s+\S+\s+(?:requires|has requirement)\s+"
+        r"(?P<requirement>[a-zA-Z0-9_\-\.]+.*?),\s+which is not installed",
         re.IGNORECASE,
     )
     _dep_name = re.compile(r"^([a-zA-Z0-9_\-\.]+)")
@@ -59,6 +85,24 @@ def parse_pip_check(pip_check: str) -> list[ConflictEntry]:
                     severity="error",
                 )
             )
+            continue
+
+        m_missing = missing_pattern.match(line)
+        if m_missing:
+            requirement = m_missing.group("requirement")
+            required_by = m_missing.group("requirer").lower()
+            dn = _dep_name.match(requirement)
+            dep_name = dn.group(1).lower() if dn else requirement.lower()
+            spec = requirement[len(dn.group(1)):] if dn else ""
+            conflicts.append(
+                ConflictEntry(
+                    package=dep_name,
+                    required_spec=spec,
+                    installed_version="none",
+                    required_by=required_by,
+                    severity="error",
+                )
+            )
     return conflicts
 
 
@@ -70,6 +114,9 @@ def build_fix_commands(
     seen = set()
     for c in conflicts:
         spec = f"{c.package}{c.required_spec}" if c.required_spec else c.package
+        # Sanitize spec to prevent shell injection (only allow safe characters)
+        if not re.match(r"^[a-zA-Z0-9_\-\.\<\>\=\,\!\~\*\s]+$", spec):
+            continue
         if package_manager == "uv":
             cmd = f'uv add "{spec}"'
         elif package_manager == "conda":

@@ -101,8 +101,27 @@ async def check_model_version(model_id: str) -> dict:
                 resp = await client.get(source_url)
                 if resp.status_code == 200:
                     body = resp.text.lower()
-                    # If model ID appears in docs, assume current
-                    if model_id.lower() in body:
+                    model_id_lower = model_id.lower()
+                    # If model ID appears in docs, verify its context
+                    if model_id_lower in body:
+                        idx = body.find(model_id_lower)
+                        start_idx = max(0, idx - 150)
+                        end_idx = min(len(body), idx + len(model_id_lower) + 150)
+                        context = body[start_idx:end_idx]
+                        
+                        deprecation_words = ["deprecat", "retir", "legacy", "archive", "eol", "end-of-life", "end of life", "discontinu", "remove"]
+                        if any(dw in context for dw in deprecation_words):
+                            return {
+                                "model_id": model_id,
+                                "provider": provider,
+                                "status": "warning",
+                                "eol_date": None,
+                                "successor_model": None,
+                                "last_checked": now,
+                                "source_url": source_url,
+                                "warnings": ["Model is mentioned in a deprecated/legacy/retired context in provider documentation."],
+                            }
+                        
                         return {
                             "model_id": model_id,
                             "provider": provider,

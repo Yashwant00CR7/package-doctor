@@ -56,6 +56,8 @@ def _is_deprecated(pypi_data: dict) -> tuple[bool, Optional[str], Optional[str]]
 
 async def fetch_package_info(name: str) -> Optional[dict]:
     """Fetch package metadata from PyPI. Returns None on network failure."""
+    if not re.match(r"^[a-zA-Z0-9_\-\.]+$", name):
+        return {"name": name, "status": "not_found", "latest_version": None}
     url = PYPI_URL.format(name=name)
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
